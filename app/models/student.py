@@ -11,4 +11,4 @@ class Student(Base):
     cgpa = Column(Float, nullable=False)
     batch = Column(Integer, nullable=False)
     is_alumni = Column(Boolean, default=False)
-    password_hash = Column(String, nullable=False)
+    password = Column(String, nullable=False)

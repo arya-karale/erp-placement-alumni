@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-
 from app.database import SessionLocal
 from app.models.student import Student
 from app.schemas.student import StudentCreate, StudentLogin
-from app.utils.security import hash_password, verify_password
 
 router = APIRouter(prefix="/student", tags=["Student"])
 
@@ -18,7 +16,7 @@ def get_db():
         db.close()
 
 
-# ✅ Register Student
+# ✅ Register Student (store plain password)
 @router.post("/register")
 def register_student(data: StudentCreate, db: Session = Depends(get_db)):
     existing = db.query(Student).filter(
@@ -34,7 +32,7 @@ def register_student(data: StudentCreate, db: Session = Depends(get_db)):
         branch=data.branch,
         cgpa=data.cgpa,
         batch=data.batch,
-        password_hash=hash_password(data.password)
+        password=data.password   # plain password stored
     )
 
     db.add(student)
@@ -44,7 +42,7 @@ def register_student(data: StudentCreate, db: Session = Depends(get_db)):
     return {"message": "Student registered successfully", "student_id": student.id}
 
 
-# ✅ Login Student
+# ✅ Login Student (simple comparison)
 @router.post("/login")
 def login_student(data: StudentLogin, db: Session = Depends(get_db)):
     student = db.query(Student).filter(
@@ -54,13 +52,19 @@ def login_student(data: StudentLogin, db: Session = Depends(get_db)):
     if not student:
         return {"error": "Student not found"}
 
-    if not verify_password(data.password, student.password_hash):
+    if student.password != data.password:
         return {"error": "Invalid password"}
 
     return {"message": "Login successful", "student_id": student.id}
 
 
-# ✅ View Student Profile
+# ✅ View All Students
+@router.get("/")
+def view_students(db: Session = Depends(get_db)):
+    return db.query(Student).all()
+
+
+# ✅ View Single Student
 @router.get("/{student_id}")
 def get_student(student_id: int, db: Session = Depends(get_db)):
     student = db.query(Student).filter(Student.id == student_id).first()
@@ -71,12 +75,7 @@ def get_student(student_id: int, db: Session = Depends(get_db)):
     return student
 
 
-# ✅ View All Students (Admin use)
-@router.get("/")
-def view_students(db: Session = Depends(get_db)):
-    return db.query(Student).all()
-
-# ✅ Update Student Profile
+# ✅ Update Student
 @router.put("/{student_id}")
 def update_student(student_id: int, data: StudentCreate, db: Session = Depends(get_db)):
     student = db.query(Student).filter(Student.id == student_id).first()
@@ -84,13 +83,12 @@ def update_student(student_id: int, data: StudentCreate, db: Session = Depends(g
     if not student:
         return {"error": "Student not found"}
 
-    # Prevent changing roll number
     update_data = data.dict()
     update_data.pop("university_roll_number", None)
 
     for key, value in update_data.items():
         if key == "password":
-            student.password_hash = hash_password(value)
+            student.password = value
         else:
             setattr(student, key, value)
 
